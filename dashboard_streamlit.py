@@ -148,13 +148,13 @@ def main():
 
     # Get 10 neighbors personal data (preprocessed)
     X_neigh, y_neigh, X_neigh0, X_neigh1 = get_data_neigh(select_sk_id)
-    y_neigh = y_neigh.replace({0: 'repaid (neighbors)',
-                               1: 'not repaid (neighbors)'})
+    y_neigh = y_neigh.replace({0: 'loan granted (neighbors)',
+                               1: 'loan rejected (neighbors)'})
 
     # Get all preprocessed training data
     X_tr_std_all, y_tr_all = get_all_proc_data_tr()  #
-    y_tr_all = y_tr_all.replace({0: 'repaid (global)',
-                                 1: 'not repaid (global)'})
+    y_tr_all = y_tr_all.replace({0: 'loan granted (global)',
+                                 1: 'loan rejected (global)'})
 
     feat_imp = get_features_importances()
     main_cols = list(feat_imp.iloc[:12].index)
@@ -263,31 +263,10 @@ the values on the arrows is the predicted probability of default on the loan (no
                        '10 neigh (mean)': '{:.2f}',
                        '10k samp (mean)': '{:.2f}'}
 
-
-        if st.checkbox('Show comparison with 20 neighbors (10 granted, 10 rejected)', key=31):
-            # Concatenation of the information to display
-            mean_n0 = X_neigh0[main_cols].mean(axis=0).to_frame('mean_n0')
-            mean_n1 = X_neigh1[main_cols].mean(axis=0).to_frame('mean_n1')
-            df_cust_radar = pd.concat([X_cust_std[main_cols],
-                                       mean_n0.T, mean_n1.T], axis=0)
-            for col in main_cols:
-                df_cust_radar[col] = df_cust_radar[col].fillna(0)
-            df_cust_radar['Mean_Ext_Source'] = df_cust_radar[['EXT_SOURCE_3',
-                                                              'EXT_SOURCE_2',
-                                                              'EXT_SOURCE_1']].mean(axis=1)
-            df_cust_radar.drop(['EXT_SOURCE_3','EXT_SOURCE_2','EXT_SOURCE_1'],
-                               axis=1, inplace=True)
-            df_cust_radar['DAYS_EMPLOYED'] = df_cust_radar['DAYS_EMPLOYED'].apply(lambda x: -x)
-            df_cust_radar['DAYS_BIRTH'] = df_cust_radar['DAYS_BIRTH'].apply(lambda x: -x)
-            radar_cols = ["Mean_Ext_Source", "PAYMENT_RATE", "DAYS_EMPLOYED",
-                         "AMT_ANNUITY", "DAYS_BIRTH", "INSTAL_DPD_MEAN"]
-            fig = radar_neigh(df_cust_radar[radar_cols].copy())
-            st.write(fig)
-
         # Display only personal_data
         df_display = pd.concat([X_cust.loc[main_cols].rename('cust'),
-                                    X_cust_std.loc[main_cols].rename('cust_std')],
-                                   axis=1)  # all pd.Series
+                                X_cust_std.loc[main_cols].rename('cust_std')],
+                               axis=1)  # all pd.Series
 
         # Display at last
         st.dataframe(df_display.style.format(format_dict)
@@ -297,18 +276,41 @@ the values on the arrows is the predicted probability of default on the loan (no
                                           vmin=-1, vmax=1)
                      .highlight_null('lightgrey'))
 
-        st.markdown('_Data used by the model, for the applicant customer,\
-            for the 10 nearest neighbors and for a random sample_')
+        if st.checkbox('Show comparison with 20 neighbors (10 granted, 10 rejected)', key=31):
+            # Concatenation of the information to display
+            cust = X_cust_std[main_cols].to_frame('cust')
+            mean_n0 = X_neigh0[main_cols].mean(axis=0).to_frame('mean_n0')
+            mean_n1 = X_neigh1[main_cols].mean(axis=0).to_frame('mean_n1')
+            df_cust_radar = pd.concat([cust.T,
+                                       mean_n0.T, mean_n1.T], axis=0)
+            for col in main_cols:
+                df_cust_radar[col] = df_cust_radar[col].fillna(0)
+            df_cust_radar['Mean_Ext_Source'] = df_cust_radar[['EXT_SOURCE_3',
+                                                              'EXT_SOURCE_2',
+                                                              'EXT_SOURCE_1']].mean(axis=1)
+            df_cust_radar.drop(['EXT_SOURCE_3','EXT_SOURCE_2','EXT_SOURCE_1'],
+                               axis=1, inplace=True)
+            df_cust_radar['DAYS_EMPLOYED'] = df_cust_radar['DAYS_EMPLOYED'].apply(lambda x: abs(x))
+            df_cust_radar['DAYS_BIRTH'] = df_cust_radar['DAYS_BIRTH'].apply(lambda x: abs(x))
+            radar_cols = ["Mean_Ext_Source", "PAYMENT_RATE", "DAYS_EMPLOYED",
+                         "AMT_ANNUITY", "DAYS_BIRTH", "INSTAL_DPD_MEAN"]
+            radar_neigh(df_cust_radar[radar_cols].copy())
+            fig = plt.gcf()
+
+            # Plot the graph on the dashboard
+            st.pyplot(fig)
+
+
+
+
+        st.markdown('_Data used by the model, for the applicant customer')
 
         expander = st.expander("Concerning the data table...")
         # format de la première colonne objet ?
 
         expander.write("The above table shows the value of each feature:\
   \n- _cust_: values of the feature for the applicant customer,\
-unprocessed \n- _10 neigh (mean)_: mean of the values of each feature \
-  for the 10 nearest neighbors of the applicant customer in the training \
-set  \n- _10k samp (mean)_: mean of the  values of each feature \
-for a random sample of customers from the training set.")
+unprocessed \n For the radar, only six features are used")
 
 
     # BOXPLOT FOR MAIN 10 VARIABLES
@@ -319,10 +321,14 @@ for a random sample of customers from the training set.")
 
         disp_box_cols = get_list_features(shap_val_trans, 10, key=42)
 
-        fig = boxplot_var_by_target(X_tr_std_all, y_tr_all, X_neigh, y_neigh,
+        boxplot_var_by_target(X_tr_std_all, y_tr_all, X_neigh, y_neigh,
                                              X_cust_std, disp_box_cols, figsize=(10, 4))
 
-        st.write(fig)
+        fig = plt.gcf()
+
+        # Plot the graph on the dashboard
+        st.pyplot(fig)
+
         st.markdown('_Dispersion of the main features for random sample,\
  10 nearest neighbors and applicant customer_')
 
