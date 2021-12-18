@@ -1,0 +1,1 @@
+web: sh setup.sh && python api_flask.py & streamlit run dashboard_streamlit.py
